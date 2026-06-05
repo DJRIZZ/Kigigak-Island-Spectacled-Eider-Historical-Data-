@@ -273,7 +273,7 @@ compare_columns <- function(excel_file, markdata_reference_df) {
 
 # Apply the comparison function to all filtered .dbf files with 'markdata' in the name
 markdata_comparison_results2006.2015 <- lapply(markdata_excel_files_eider2006.2015, compare_columns, markdata_reference_df = markdata_reference_df)
-#There is no markdata collected for years 2007 and 2015
+#There is no markdata collected for years 2007
 #years 2006-2008 columns 'NASAL' and 'TARSAL' need to be changed to 'NASALCODE' and 'TARSALCODE'
 #years 2009-2011 columns 'NASAL' 'TARSAL' 'NEST #' 'BAND NUMBER' 'SPECIES' need changed to 'NASALCODE' 'TARSALCODE' 'NEST_NO' 'BANDNUMBER' 'SPECIESCOD'
 #years 2012-2014 columns 'NASAL' 'TARSAL' 'NEST #' 'BAND NUMBER' 'SPECIES' 'WT (G)' CULMEN (MM)' 'TARSUS (MM)' need changed to 'NASALCODE' 'TARSALCODE' 'NEST_NO' 'BANDNUMBER' 'SPECIESCOD' 'WT' 'CULMEN' 'TARSUS'
@@ -793,7 +793,7 @@ broodcapture_excel_files_eider2006.2015 <- unlist(lapply(eider_data_folders_2006
   return(excel_files_filtered)
 }))
 
-
+#Function to ensure columns with the same name have consistent data types across data frames before they are merged
 harmonize_types <- function(df1, df2) {
   common <- intersect(names(df1), names(df2))
   for (col in common) {
@@ -826,10 +826,12 @@ harmonize_list <- function(df_list) {
   df_list
 }
 
+#extract the year from the folder name and store as 'Year' column
 read_brood_file <- function(file) {
   year   <- sub(".*(\\d{4}).*", "\\1", basename(dirname(file)))
   sheets <- excel_sheets(file)
 
+  #read sheets containing data from captures
   read_sheet <- function(pattern) {
     s <- sheets[grepl(pattern, sheets, ignore.case = TRUE)][1]
     if (is.na(s)) return(NULL)
@@ -845,6 +847,7 @@ read_brood_file <- function(file) {
   adults  <- read_sheet("adult")
   ducks   <- read_sheet("duckling")
 
+  #if file does not contain multiple sheets, it is read as one (assigned data source BROOD)
   if (is.null(adults) && is.null(ducks)) {
     single <- read_sheet(basename(file))
     single$DATA_SOURCE <- "BROOD"
@@ -860,11 +863,12 @@ read_brood_file <- function(file) {
     event_info <- if (!is.null(capture)) capture else trap
     if (!is.null(event_info)) event_info <- distinct(event_info, `CAPTURE #`, .keep_all = TRUE)
   }
-
-  if (!is.null(adults)) adults$AGE_CLASS <- "ADULT"
+  #process ADULT and DUCKLING sheets and combine into one, temporary data fram
+  if (!is.null(adults)) adults$AGE_CLASS <- "ADULT" #add AGE_CLASS column to keep combined sheets distinct
   if (!is.null(ducks))  ducks$AGE_CLASS  <- "DUCKLING"
   birds <- bind_rows(harmonize_list(list(adults, ducks)))
 
+    #join birds data frame to capture sheet using CAPTURE # as joining variable
   if (!is.null(event_info) && "CAPTURE #" %in% names(event_info)) {
     new_cols <- setdiff(names(event_info), names(birds))
     if (length(new_cols) > 0) {
@@ -873,7 +877,7 @@ read_brood_file <- function(file) {
                          by = "CAPTURE #")
     }
   }
-
+  #add data source column to keep markdata and brood capture data distinct
   birds$DATA_SOURCE <- "BROOD"
   birds
 }
@@ -882,12 +886,14 @@ read_brood_file <- function(file) {
 brood_results <- lapply(broodcapture_excel_files_eider2006.2015, read_brood_file)
 brood_results <- Filter(Negate(is.null), brood_results)
 
+#records missing CAPTURE # are removed
 brood_bird_data2006.2015 <- bind_rows(harmonize_list(brood_results)) %>%
   filter(!is.na(`CAPTURE #`))
 
 #combine brood capture data with markdata
 all_cols <- union(names(markdata_combined_data2006.2015), names(brood_bird_data2006.2015))
 
+#add any missing columns to combined data frame and populate with NA values
 add_missing_cols <- function(df) {
   for (col in setdiff(all_cols, names(df))) df[[col]] <- NA
   df[, all_cols]
@@ -896,10 +902,12 @@ add_missing_cols <- function(df) {
 markdata_combined_data2006.2015 <- add_missing_cols(markdata_combined_data2006.2015)
 brood_bird_data2006.2015        <- add_missing_cols(brood_bird_data2006.2015)
 
+#add data source column to keep markdata and brood capture data distinct
 markdata_combined_data2006.2015$DATA_SOURCE <- "MARKDATA"
 brood_bird_data2006.2015$DATA_SOURCE        <- "BROOD"
-brood_bird_data2006.2015$RECAP              <- as.logical(brood_bird_data2006.2015$RECAP)
+brood_bird_data2006.2015$RECAP              <- as.logical(brood_bird_data2006.2015$RECAP) #standardize RECAP to logical format
 
+#combine markdata and brood data into existing markdata file
 markdata_combined_data2006.2015 <- bind_rows(
   harmonize_list(list(markdata_combined_data2006.2015, brood_bird_data2006.2015))
 )
