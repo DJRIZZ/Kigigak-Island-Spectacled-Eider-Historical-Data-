@@ -233,20 +233,19 @@ Header_comparison_results2006.2015 <- lapply(Header_excel_files_eider2006.2015, 
 
 # List all excel files from those folders, including only files that have 'markdata', or 'banding' in the name
 markdata_excel_files_eider2006.2015 <- unlist(lapply(eider_data_folders_2006.2015, function(folder) {
-  # List excel files and filter for files with "markdata","mark", or "banding" in the name (in 2006, markdata was named MARK)
+  # List excel files and filter for files with "markdata", "mark", or "banding" in the name
   excel_files_all <- list.files(path = folder, pattern = "\\.xls[x]?$", full.names = TRUE, ignore.case = TRUE)
   file_names <- basename(excel_files_all)
 
   excel_files_filtered <- excel_files_all[
-    grepl("markdata|\\bmark\\b", file_names, ignore.case = TRUE) |
-      grepl("banding", file_names, ignore.case = TRUE)
+    grepl("markdata|mark|banding", file_names, ignore.case = TRUE)
   ]
   return(excel_files_filtered)
 }))
-# View the filtered list of excel files with 'markdata' or 'banding' in the name
+# Verify all expected years including 2014 and 2015 are present in the filtered file list
 print(markdata_excel_files_eider2006.2015)
 
-#Comparing columns of the Header files to the markdata reference dataframe
+#Comparing columns of the markdata files to the markdata reference dataframe
 
 # Function to compare column names of a excel file with the reference data frame
 compare_columns <- function(excel_file, markdata_reference_df) {
@@ -513,42 +512,108 @@ all_columns <- NULL
 # Define a mapping of column names that should be unified across all files
 # This is a list where the key is the original column name and the value is the new standardized column name
 column_rename_map_markdata <- list(
-  "NASAL" = "NASALCODE",
   "TARSAL" = "TARSALCODE",
   "NEST #" = "NEST_NO",
   "NEST#" = "NEST_NO",
-  "Band Number" = "BAND_RAW",
   "BAND NUMBER" = "BAND_RAW",
   "BANDNUMBER" = "BAND_RAW",
   "SPECIES" = "SPECIESCOD",
-  "WT(g)" = "WT",
-  "WT (g)" = "WT",
-  "CULMEN (mm)" = "CULMEN",
-  "TARSUS (mm)" = "TARSUS",
+  "BIRD WEIGHT" = "WT",
+  "WT(G)" = "WT",
+  "WT (G)" = "WT",
+  "CULMEN (MM)" = "CULMEN",
+  "CULMEN LENGTH" = "CULMEN",
+  "TARSUS LENGTH" = "TARSUS",
+  "TARSUS (MM)" = "TARSUS",
   "PLOT #" = "PLOT",
-  "Trap Method" = "TRAP",
+  "TRAP METHOD" = "TRAP",
+  "REPLACEMENT \r\nBAND" = "REPLCMT_BAND",
+  "REPLACEMENT \r\nTARSAL" = "REPLCMT_TARSAL",
+  "REPLACEMENT \r\nNASAL" = "REPLCMT_NASAL",
+  "DATE ORIGINALLY \r\nBANDED" = "DT_ORIG_BAND",
   "REPLACEMENT \nBAND" = "REPLCMT_BAND",
   "REPLACEMENT \nTARSAL" = "REPLCMT_TARSAL",
   "REPLACEMENT \nNASAL" = "REPLCMT_NASAL",
   "DATE ORIGINALLY \nBANDED" = "DT_ORIG_BAND",
-  "Bird Weight" = "WT",
-  "Culmen Length" = "CULMEN",
-  "Tarsus Length" = "TARSUS",
-  "Banding Date" = "DATE",
-  "Aux Marker Code" = "TARSALCODE"
+  "BANDING DATE" = "DATE",
+  "AUX MARKER CODE" = "TARSALCODE",
+  "AGE" = "AGE",
+  "LOCATION::LAT FLOAT" = "LATITUDE",
+  "LOCATION::LONG FLOAT" = "LONGITUDE",
+  "WGT" = "WT",
+  "HOW CAPTURED" = "TRAP",
+  "TRAP METHOD" = "TRAP",
+  "REPLACEMENT \nNASAL"    = "REPLCMT_NASAL",
+  "REPLACEMENT \r\nNASAL"  = "REPLCMT_NASAL",
+  "REPLACEMENT \nTARSAL"   = "REPLCMT_TARSAL",
+  "REPLACEMENT \r\nTARSAL" = "REPLCMT_TARSAL",
+  "DATE ORIGINALLY\nBANDED"   = "DT_ORIG_BAND",
+  "DATE ORIGINALLY\r\nBANDED" = "DT_ORIG_BAND",
+  "SALINITY"          = "SALIN",
+  "SALINITY\r\n(PPT)" = "SALIN",
+  "POND \nTEMP"          = "POND_TEMP",
+  "POND \r\nTEMP\r\n(OC)"= "POND_TEMP",
+  "POND \nDEPTH"         = "POND_DEPTH",
+  "POND \r\nDEPTH (MM)"  = "POND_DEPTH",
+  "POND \nSHAPE"         = "POND_SHAPE",
+  "POND \r\nSHAPE"       = "POND_SHAPE",
+  "POND AREA \n(M2)"     = "POND_AREA",
+  "POND AREA \r\n(M2)"   = "POND_AREA",
+  "POND PERIMETER (M)"   = "POND_PERIM",
+  "VEGETATION \nTYPE"      = "VEG_TYPE",
+  "VEGETATION \r\nTYPE"    = "VEG_TYPE",
+  "VEGETATION \nSPECIES"   = "VEG_SPECIES",
+  "VEGETATION \r\nSPECIES" = "VEG_SPECIES",
+  "% EMERGENT \nCOVER"     = "PCT_EMERGENT",
+  "% EMERGENT \r\nCOVER"   = "PCT_EMERGENT"
 )
+
+# Function to determine correct sheet for each markdata file
+get_markdata_sheet <- function(file) {
+
+  sheets <- excel_sheets(file)
+
+  # 2014 files
+  if (grepl("2014", basename(file), ignore.case = TRUE)) {
+
+    # Prefer "All" sheet if it exists
+    if ("All" %in% sheets) {
+      return("All")
+    } else {
+      return(sheets[1])
+    }
+  }
+
+  # 2015 file
+  if (grepl("2015", basename(file), ignore.case = TRUE)) {
+    return("Sheet1")
+  }
+
+  # Default behavior for older files
+  return(sheets[1])
+}
 
 
 # First loop: Collect all unique column names across all files
 for (file in markdata_excel_files_eider2006.2015) {
   # Read the excel files into a data frame
-  df <- read_excel(file)
+  sheet_to_read <- get_markdata_sheet(file)
+  df <- read_excel(file, sheet = sheet_to_read)
 
   # Extract the year (from folder name) from the file path (e.g., "1994" from "Eider1994")
   folder_name <- sub(".*(\\d{4}).*", "\\1", basename(dirname(file)))
 
+   #handle a type mismatch for 2015 date column
+  if (folder_name == "2015") {
+    df <- read_excel(file, sheet = sheet_to_read,
+                     col_types = c("Banding Date" = "text"))
+  }
+
   # Add the folder name (year) as a new column
   df$YEAR <- folder_name
+
+  #standardize case of column names so it matched the map
+  colnames(df) <- toupper(trimws(colnames(df)))
 
   # Apply column renaming based on the predefined mapping
   colnames(df) <- sapply(colnames(df), function(x) {
@@ -588,7 +653,7 @@ for (file in markdata_excel_files_eider2006.2015) {
   }
 
   #When entries contain both prefix and suffix band numbers, they are combined and entered into BANDNU_COMPLETE
-  if ("PREFIX" %in% colnames(df)) {
+  if ("PREFIXNUMB" %in% colnames(df)) {
 
     has_both <- !is.na(df$PREFIXNUMB) & !is.na(df$BANDNU_SUFFIX)
 
@@ -607,6 +672,21 @@ for (file in markdata_excel_files_eider2006.2015) {
     df$PLOT <- as.character(df$PLOT)  # Convert 'PLOT' to character
   } else {
     df$PLOT <- NA  # If 'PLOT' doesn't exist, assign NA
+  }
+
+  #standardize 'WT' column to numeric type of it exists
+  if ("WT" %in% colnames(df)) {
+    df$WT <- suppressWarnings(as.numeric(trimws(as.character(df$WT))))
+  }
+
+  #standardize 'CULMEN' to numeric type
+  if ("CULMEN" %in% colnames(df)) {
+    df$CULMEN <- suppressWarnings(as.numeric(trimws(as.character(df$CULMEN))))
+  }
+
+  #standardize 'Tarsus' to numeric
+  if ("TARSUS" %in% colnames(df)) {
+    df$TARSUS <- suppressWarnings(as.numeric(trimws(as.character(df$TARSUS))))
   }
 
   # Store all column names to determine the full set of columns
@@ -658,7 +738,16 @@ for (i in 1:length(markdata_data_list2006.2015)) {
 
   # Standardize 'DATE' column to Date type
   if ("DATE" %in% colnames(df)) {
-    df$DATE <- as.Date(df$DATE, format="%Y-%m-%d")  # Adjust format if necessary
+    date_raw <- as.character(df$DATE)
+    df$DATE <- as.Date(case_when(
+      grepl("^\\d{2}/\\d{2}/\\d{4}$", date_raw) ~
+        format(as.Date(date_raw, format = "%m/%d/%Y"), "%Y-%m-%d"),
+      grepl("^\\d{4}-\\d{2}-\\d{2}$", date_raw) ~
+        date_raw,
+      grepl("^\\d+$", date_raw) ~
+        format(as.Date(as.numeric(date_raw), origin = "1899-12-30"), "%Y-%m-%d"),
+      TRUE ~ NA_character_
+    ))
   }
 
   # Ensure 'RECAP' is standardized to logical type
@@ -678,17 +767,32 @@ for (i in 1:length(markdata_data_list2006.2015)) {
   markdata_data_list2006.2015[[i]] <- df
 }
 
+
+
 #Combine all the data frames into one
 markdata_combined_data2006.2015 <- bind_rows(markdata_data_list2006.2015)
+
+
 
 ###########
 #Reading brood capture data and combining it with markdata table
 #Brood capture data was not included from years 1992-2005, as any files dedicated to brood data are either corrupted, empty, or do not contain enough relevant data
 
 
-###########
-# BROOD DATA PROCESSING
-###########
+#Initializing a list of files that include brood capture data
+broodcapture_excel_files_eider2006.2015 <- unlist(lapply(eider_data_folders_2006.2015, function(folder) {
+  #list excel files and filter for files with "brood" or "broods" in the name
+  excel_files_all <- list.files(path = folder, pattern = "\\.xls[x]?$",
+                                full.names = TRUE, ignore.case = TRUE)
+  file_names <- basename(excel_files_all)
+
+  excel_files_filtered <- excel_files_all[
+    grepl("brood", file_names, ignore.case = TRUE)|
+      grepl("broods", file_names, ignore.case = TRUE)
+  ]
+  return(excel_files_filtered)
+}))
+
 
 harmonize_types <- function(df1, df2) {
   common <- intersect(names(df1), names(df2))
@@ -780,6 +884,27 @@ brood_results <- Filter(Negate(is.null), brood_results)
 
 brood_bird_data2006.2015 <- bind_rows(harmonize_list(brood_results)) %>%
   filter(!is.na(`CAPTURE #`))
+
+#combine brood capture data with markdata
+all_cols <- union(names(markdata_combined_data2006.2015), names(brood_bird_data2006.2015))
+
+add_missing_cols <- function(df) {
+  for (col in setdiff(all_cols, names(df))) df[[col]] <- NA
+  df[, all_cols]
+}
+
+markdata_combined_data2006.2015 <- add_missing_cols(markdata_combined_data2006.2015)
+brood_bird_data2006.2015        <- add_missing_cols(brood_bird_data2006.2015)
+
+markdata_combined_data2006.2015$DATA_SOURCE <- "MARKDATA"
+brood_bird_data2006.2015$DATA_SOURCE        <- "BROOD"
+brood_bird_data2006.2015$RECAP              <- as.logical(brood_bird_data2006.2015$RECAP)
+
+markdata_combined_data2006.2015 <- bind_rows(
+  harmonize_list(list(markdata_combined_data2006.2015, brood_bird_data2006.2015))
+)
+
+
 ##################################
 #Combining all "resight" data from 2006-2015
 
