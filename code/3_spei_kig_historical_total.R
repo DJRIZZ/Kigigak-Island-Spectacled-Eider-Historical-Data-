@@ -35,7 +35,7 @@ install.load.package <- function(x) {
   require(x, character.only = TRUE)
 }
 
-package_vec <- c("workflowr", "tidyverse", "foreign", "dplyr", "here", "tools", "stringr","readxl", "purrr", "lubridate", "sp", "sf", "leaflet", "units")
+package_vec <- c("workflowr", "tidyverse", "foreign", "dplyr", "here", "tools", "stringr","readxl", "purrr", "lubridate", "sp", "sf", "leaflet", "units", "htmlwidgets")
 sapply(package_vec, install.load.package)
 
 ################################
@@ -174,7 +174,7 @@ header_inside_kig <- combined_header_data_total_reduced %>%
 
 
 #Plot the converted LAT LON values
-leaflet(header_inside_kig) %>%
+header_site_locations1992.2015 <- leaflet(header_inside_kig) %>%
   addProviderTiles('Esri.WorldImagery')%>%
   addCircleMarkers(
     lng = ~LON,
@@ -186,7 +186,7 @@ leaflet(header_inside_kig) %>%
     popup = ~paste("HEADER_ID: ", combined_header_data_total_reduced$HEADER_ID)
   )
 
-
+saveWidget(header_site_locations1992.2015, file = "output/header_site_locations1992.2015.html", selfcontained = TRUE)
 
 #######################################
 
@@ -314,7 +314,7 @@ markdata_inside_kig <- combined_markdata_total %>%
 
 
 #Plot the converted LAT LON values
-leaflet(markdata_inside_kig) %>%
+mark_site_locations1992.2015 <- leaflet(markdata_inside_kig) %>%
   addProviderTiles('Esri.WorldImagery')%>%
   addCircleMarkers(
     lng = ~LONGITUDE,
@@ -325,6 +325,8 @@ leaflet(markdata_inside_kig) %>%
     fillOpacity = 0.7,
     popup = ~paste("MARK_ID: ", combined_markdata_total$MARK_ID)
   )
+
+saveWidget(mark_site_locations1992.2015, file = "output/mark_site_locations1992.2015.html", selfcontained = TRUE)
 
 
 ###################################
@@ -460,7 +462,7 @@ resight_inside_kig <- combined_resight_data_total %>%
 
 
 #Plot the converted LAT LON values
-leaflet(resight_inside_kig) %>%
+resight_site_locations1992.2015 <- leaflet(resight_inside_kig) %>%
   addProviderTiles('Esri.WorldImagery')%>%
   addCircleMarkers(
     lng = ~LON,
@@ -469,9 +471,10 @@ leaflet(resight_inside_kig) %>%
     color = "red",
     stroke = FALSE,
     fillOpacity = 0.7,
-    popup = ~paste("TARSALCODE: ", combined_header_data_total$TARSALCODE)
+    popup = ~paste("TARSALCODE: ", combined_resight_data_total$TARSALCODE)
   )
 
+saveWidget(resight_site_locations1992.2015, file = "output/resight_site_locations1992.2015.html", selfcontained = TRUE)
 
 
 ####################################
@@ -609,7 +612,7 @@ visit_inside_kig <- combined_visit_data_total %>%
 
 
 #Plot the converted LAT LON values
-leaflet(visit_inside_kig) %>%
+visit_site_locations1992.2015 <- leaflet(visit_inside_kig) %>%
   addProviderTiles('Esri.WorldImagery')%>%
   addCircleMarkers(
     lng = ~LON,
@@ -620,6 +623,8 @@ leaflet(visit_inside_kig) %>%
     fillOpacity = 0.7,
     popup = ~paste("VISIT_ID: ", combined_visit_data_total$VISIT_ID)
   )
+
+saveWidget(visit_site_locations1992.2015, file = "output/visit_site_locations1992.2015.html", selfcontained = TRUE)
 
 
 ##################################################################################
@@ -755,17 +760,17 @@ egg_combined_data1992.2005 <- egg_combined_data1992.2005 %>%
 
 
 #Export combined header data frame to .csv
-write.csv(combined_header_data_total_reduced, row.names = FALSE, "output/combined_header_data_1992-2015.csv")
+write.csv(combined_header_data_total_reduced, col.names = FALSE, "output/combined_header_data_1992-2015.csv")
 #Export associated spp data frame to .csv
-write.csv(associated_spp_header_combined, row.names = FALSE, "output/associated_spp_header_data_1992-2015.csv")
+write.csv(associated_spp_header_combined, col.names = FALSE, "output/associated_spp_header_data_1992-2015.csv")
 
 #Export markdata data fram to .csv
-write.csv(combined_markdata_total, row.names = FALSE, "output/combined_markdata_data_1992-2015.csv")
+write.csv(combined_markdata_total, col.names = FALSE, "output/combined_markdata_data_1992-2015.csv")
 
 #Export resight data frame to .csv
-write.csv(combined_resight_data_total, row.names = FALSE, "output/combined_resight_data_1992-2015.csv")
+write.csv(combined_resight_data_total, col.names = FALSE, "output/combined_resight_data_1992-2015.csv")
 
 #Export visit data frame to .csv
-write.csv(combined_visit_data_total, row.names = FALSE, "output/combined_visit_data_1992-2015.csv")
+write.csv(combined_visit_data_total, col.names = FALSE, "output/combined_visit_data_1992-2015.csv")
 
 
