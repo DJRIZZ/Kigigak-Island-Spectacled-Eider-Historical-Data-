@@ -187,16 +187,16 @@ leaflet(header_inside_kig) %>%
   )
 
 
-#Export combined data frame to .csv
-write.csv(combined_header_data_total_reduced, "output/combined_header_data_1992-2015.csv")
-#Export associated spp data frame to .csv
-write.csv(associated_spp_header_combined, "output/associated_spp_header_data_1992-2015.csv")
-
 
 #######################################
 
 #Combining markdata data from 1994-2005 and 2006-2015
 
+#standardize LONGITUDE to numeric
+markdata_combined_data1992.2005$LONGITUDE <- as.numeric(markdata_combined_data1992.2005$LONGITUDE)
+markdata_combined_data2006.2015$LONGITUDE <- as.numeric(markdata_combined_data2006.2015$LONGITUDE)
+
+#combine data frames
 combined_markdata_total <- bind_rows(markdata_combined_data1992.2005, markdata_combined_data2006.2015)
 
 ##Post combined table processing
@@ -284,11 +284,11 @@ sf_combined <- st_as_sf(combined_markdata_total, coords = c("EASTING", "NORTHING
 sf_combined <- st_transform(sf_combined, crs = 4326)
 
 # Extract Latitude and Longitude from transformed coordinates
-combined_markdata_total$LATITITUDE <- st_coordinates(sf_combined)[,2]
+combined_markdata_total$LATITUDE <- st_coordinates(sf_combined)[,2]
 combined_markdata_total$LONGITUDE <- st_coordinates(sf_combined)[,1]
 
 # Convert the placeholder 0 values back to NA
-combined_markdata_total$LATITITUDE[combined_markdata_total$EASTING == 0 & combined_markdata_total$NORTHING == 0] <- NA
+combined_markdata_total$LATITUDE[combined_markdata_total$EASTING == 0 & combined_markdata_total$NORTHING == 0] <- NA
 combined_markdata_total$LONGITUDE[combined_markdata_total$EASTING == 0 & combined_markdata_total$NORTHING == 0] <- NA
 
 # Define Kigigak Island bounding box
@@ -301,8 +301,8 @@ max_lon <- -164.883000
 combined_markdata_total <- combined_markdata_total %>%
   mutate(
     TRUE_LOCATION = case_when(
-      !is.na(LATITITUDE) & !is.na(LONGITUDE) &
-        LATITITUDE >= min_lat & LATITITUDE <= max_lat &
+      !is.na(LATITUDE) & !is.na(LONGITUDE) &
+        LATITUDE >= min_lat & LATITUDE <= max_lat &
         LONGITUDE >= min_lon & LONGITUDE <= max_lon ~ "yes",
       TRUE ~ "no"
     )
@@ -318,7 +318,7 @@ leaflet(markdata_inside_kig) %>%
   addProviderTiles('Esri.WorldImagery')%>%
   addCircleMarkers(
     lng = ~LONGITUDE,
-    lat = ~LATITITUDE,
+    lat = ~LATITUDE,
     radius = 5,
     color = "yellow",
     stroke = FALSE,
@@ -326,8 +326,6 @@ leaflet(markdata_inside_kig) %>%
     popup = ~paste("MARK_ID: ", combined_markdata_total$MARK_ID)
   )
 
-#Exporting combined data frame to .csv
-write.csv(combined_markdata_total, "output/combined_markdata_1994-2015.csv")
 
 ###################################
 
@@ -474,11 +472,6 @@ leaflet(resight_inside_kig) %>%
     popup = ~paste("TARSALCODE: ", combined_header_data_total$TARSALCODE)
   )
 
-
-
-
-#Export the combined data frame to .csv
-write.csv(combined_resight_data_total, "output/combined_resight_data_1992-2015.csv")
 
 
 ####################################
@@ -629,10 +622,6 @@ leaflet(visit_inside_kig) %>%
   )
 
 
-
-#Export combined data frame as a .csv
-write.csv(combined_visit_data_total, "output/combined_visit_data_1992-2015.csv")
-
 ##################################################################################
 #This section includes all columns necessary to make all data tables stand-alone
 #This section is included here to pull full columns from data that has already been compiled.
@@ -653,67 +642,77 @@ combined_header_data_total_reduced <- combined_header_data_total_reduced %>%
   left_join(first_found_dates, by = "NEST_NO")
 
 ####################################
+#post-combination column consolidation for markdata
 
-#Adding NEST_NO to markdata years 2014 and 2015 based on lat long values in header data
+#consolidating WGT and WT to WT (conflicts were manually checked beforehand)
+combined_markdata_total <- combined_markdata_total %>%
+  mutate(WT = coalesce(WT, WGT)) %>%
+  select(-WGT)
 
-#Split data
-mark_known <- combined_markdata_total %>%
-  filter(!is.na(NEST_NO))   # already good
+#consolidating TARSAL CODE and TARSALCODE to TARSALCODE (conflicts were manually checked beforehand)
+combined_markdata_total <- combined_markdata_total %>%
+  mutate(TARSALCODE = coalesce(TARSALCODE, `TARSAL CODE`)) %>%
+  select(-`TARSAL CODE`)
 
-mark_missing <- combined_markdata_total %>%
-  filter(is.na(NEST_NO))    # needs spatial matching
 
-#Remove rows with missing coordinates from the matching pool
-mark_missing_valid <- mark_missing %>%
-  filter(!is.na(LATITITUDE), !is.na(LONGITUDE))
+#consolidating REPLCMT_NASAL, "REPLACEMENT \nNASAL", "REPLACEMENT \r\nNASAL" to REPLCMT_NASAL (conflicts were manually checked beforehand)
+combined_markdata_total <- combined_markdata_total %>%
+  mutate(REPLCMT_NASAL = coalesce(REPLCMT_NASAL,
+                                  `REPLACEMENT \nNASAL`,
+                                  `REPLACEMENT \r\nNASAL`)) %>%
+  select(-`REPLACEMENT \nNASAL`, -`REPLACEMENT \r\nNASAL`)
 
-mark_missing_no_coords <- mark_missing %>%
-  filter(is.na(LATITITUDE) | is.na(LONGITUDE)) %>%
-  mutate(match_distance_m = NA)
+#consolidating DT_ORIG_BAND, "DATE ORIGINALLY\nBANDED", "DATE ORIGINALLY\r\nBANDED" to DT_ORIG_BAND (conflicts were manually checked beforehand)
+combined_markdata_total$`DATE ORIGINALLY\nBANDED`<- as.double(combined_markdata_total$`DATE ORIGINALLY\nBANDED`) #standardizing column format
+combined_markdata_total$`DATE ORIGINALLY\r\nBANDED` <- as.double(combined_markdata_total$`DATE ORIGINALLY\r\nBANDED`) #standardizing column format
 
-#Convert to sf
-header_sf <- combined_header_data_total_reduced %>%
-  filter(!is.na(LAT), !is.na(LON)) %>%
-  st_as_sf(coords = c("LON", "LAT"), crs = 4326) %>%
-  st_transform(3338)
+combined_markdata_total <- combined_markdata_total %>%
+  mutate(DT_ORIG_BAND = coalesce(DT_ORIG_BAND,
+                                 `DATE ORIGINALLY\nBANDED`,
+                                 `DATE ORIGINALLY\r\nBANDED`)) %>%
+  select(-`DATE ORIGINALLY\nBANDED`, -`DATE ORIGINALLY\r\nBANDED`)
 
-mark_sf <- mark_missing_valid %>%
-  st_as_sf(coords = c("LONGITUDE", "LATITITUDE"), crs = 4326) %>%
-  st_transform(3338)
+#consolidating SALIN, SALINITY, "SALINITY\r\n(PPT)" to SALIN (conflicts were manually checked beforehand)
+combined_markdata_total <- combined_markdata_total %>%
+  mutate(SALIN = coalesce(SALIN, SALINITY, `SALINITY\r\n(PPT)`)) %>%
+  select(-SALINITY, -`SALINITY\r\n(PPT)`)
 
-#Match within same year
-threshold <- set_units(10, "m")
+#consolidating COMMENTS and REMARKS (uniting so no data is lost)
+combined_markdata_total <- combined_markdata_total %>%
+  unite("COMMENTS", COMMENTS, REMARKS, sep = ". ", na.rm = TRUE, remove = TRUE)
 
-matched_sf <- purrr::map_dfr(unique(mark_sf$YEAR), function(y) {
+#consolidating "POND \nDEPTH" and "POND \r\nDEPTH (MM)" to POND_DEPTH
+combined_markdata_total$`POND \nDEPTH` <- as.double(combined_markdata_total$`POND \nDEPTH`) #standardizing column format
 
-  mark_subset   <- mark_sf   %>% filter(YEAR == y)
-  header_subset <- header_sf %>% filter(Year == y)
+combined_markdata_total <- combined_markdata_total %>%
+  mutate(POND_DEPTH = coalesce(`POND \nDEPTH`, `POND \r\nDEPTH (MM)`)) %>%
+  select(-`POND \nDEPTH`, -`POND \r\nDEPTH (MM)`)
 
-  nearest_index <- st_nearest_feature(mark_subset, header_subset)
+#consolidating "POND \nSHAPE" and "POND \r\nSHAPE" to POND_SHAPE
+combined_markdata_total <- combined_markdata_total %>%
+  mutate(POND_SHAPE = coalesce(`POND \nSHAPE`, `POND \r\nSHAPE`)) %>%
+  select(-`POND \nSHAPE`, -`POND \r\nSHAPE`)
 
-  dist_to_nearest <- st_distance(
-    mark_subset,
-    header_subset[nearest_index, ],
-    by_element = TRUE
-  )
+#consolidating "% EMERGENT \nCOVER" and "% EMERGENT \r\nCOVER" to PCT_EMERGENT_COVER
+combined_markdata_total <- combined_markdata_total %>%
+  mutate(PCT_EMERGENT_COVER = coalesce(`% EMERGENT \nCOVER`, `% EMERGENT \r\nCOVER`)) %>%
+  select(-`% EMERGENT \nCOVER`, -`% EMERGENT \r\nCOVER`)
 
-  mark_subset %>%
-    mutate(
-      NEST_NO = ifelse(
-        dist_to_nearest <= threshold,
-        header_subset$NEST_NO[nearest_index],
-        NA
-      ),
-      match_distance_m = set_units(dist_to_nearest, "m")
-    )
-})
+#consolidating VEGETATION \nTYPE" and "VEGETATION \r\nTYPE" to VEG_TYPE
+combined_markdata_total <- combined_markdata_total %>%
+  mutate(VEG_TYPE = coalesce(`VEGETATION \nTYPE`, `VEGETATION \r\nTYPE`)) %>%
+  select(-`VEGETATION \nTYPE`, -`VEGETATION \r\nTYPE`)
 
-#Recombine EVERYTHING
-combined_markdata_total_updated <- bind_rows(
-  mark_known,
-  matched_sf %>% st_drop_geometry(),
-  mark_missing_no_coords
-)
+#consolidating "VEGETATION \nSPECIES" and "VEGETATION \r\nSPECIES" to VEG_SPECIES
+combined_markdata_total <- combined_markdata_total %>%
+  mutate(VEG_SPECIES = coalesce(`VEGETATION \nSPECIES`, `VEGETATION \r\nSPECIES`)) %>%
+  select(-`VEGETATION \nSPECIES`, -`VEGETATION \r\nSPECIES`)
+
+
+#Drop any columns that are now all NA or all 0
+combined_markdata_total <- combined_markdata_total %>%
+  select_if(~!all(is.na(.) | . == 0))
+
 ####################################
 #Adding STUDYAREA to resight table
 
@@ -749,4 +748,24 @@ egg_combined_data1992.2005 <- egg_combined_data1992.2005 %>%
     studyarea_lookup,
     by = c("NEST_NO", "Year")
   )
+
+######################################
+
+#Exporting combined data tables to .csv files
+
+
+#Export combined header data frame to .csv
+write.csv(combined_header_data_total_reduced, row.names = FALSE, "output/combined_header_data_1992-2015.csv")
+#Export associated spp data frame to .csv
+write.csv(associated_spp_header_combined, row.names = FALSE, "output/associated_spp_header_data_1992-2015.csv")
+
+#Export markdata data fram to .csv
+write.csv(combined_markdata_total, row.names = FALSE, "output/combined_markdata_data_1992-2015.csv")
+
+#Export resight data frame to .csv
+write.csv(combined_resight_data_total, row.names = FALSE, "output/combined_resight_data_1992-2015.csv")
+
+#Export visit data frame to .csv
+write.csv(combined_visit_data_total, row.names = FALSE, "output/combined_visit_data_1992-2015.csv")
+
 
